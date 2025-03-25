@@ -1,4 +1,5 @@
 from pydantic import BaseModel, constr, EmailStr, conint, StringConstraints, Field
+from src.db.Types import User_Roles
 from typing import Optional
 import uuid
 
@@ -33,6 +34,27 @@ class UserSchema(BaseModel):
             ],
         ),
     ]
+
+
+class UserUpdateSchema(BaseModel):
+    firstname: Optional[Annotated[str, Field(min_length=2, max_length=30)]]
+    lastname: Optional[
+        Annotated[
+            str,
+            Field(min_length=2, max_length=30, examples=["Verma"], default=None),
+        ]
+    ]
+    email: Optional[EmailStr]
+    password: Optional[
+        Annotated[
+            str,
+            Field(min_length=8, max_length=20, pattern=r"^[A-Za-z\d@$!%*?&]{8,}$"),
+        ]
+    ]
+
+
+class UserRoleUpdate(BaseModel):
+    role: User_Roles
 
 
 class LoginSchema(BaseModel):

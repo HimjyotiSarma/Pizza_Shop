@@ -25,7 +25,13 @@ class ItemUpdateSchema(BaseModel):
 
 class CategorySchema(BaseModel):
     name: str
-    type_of: str | Food_Type = Food_Type.OTHER
+    type_of: Food_Type = Food_Type.OTHER
     description: str = Annotated[
         str, Field(min_length=10, max_length=250, default="Descriprion not available")
     ]
+
+
+class CategoryUpdateSchema(BaseModel):
+    name: Optional[str]
+    type_of: Optional[Food_Type]
+    description: Optional[str]

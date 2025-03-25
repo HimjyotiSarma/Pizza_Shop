@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 import uuid
 
 from src.db.models import Customer, User
-from .schema import UserSchema, PasswordConfirmSchema
+from .schema import UserSchema, PasswordConfirmSchema, UserUpdateSchema, UserRoleUpdate
 from src.auth.utils import generate_password_hash
 
 
@@ -23,6 +23,25 @@ class AuthService:
             statement = select(User).where(User.email == email)
             result = await session.exec(statement)
             user = result.first()
+            return user
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Error getting User: {str(e)}",
+            )
+
+    async def get_user_by_uid(self, user_id: str, session: AsyncSession) -> User:
+        try:
+            if not user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Please provide user id and try again",
+                )
+
+            statement = select(User).where(User.uid == user_id)
+            result = await session.exec(statement)
+            user = result.one()
             return user
 
         except Exception as e:
@@ -138,13 +157,22 @@ class AuthService:
                 detail=f"Error Creating New Customer: {str(e)}",
             )
 
-    async def update_user(self, user: User, updated_info: dict, session: AsyncSession):
+    async def update_user(
+        self, user: User, updated_schema: UserUpdateSchema, session: AsyncSession
+    ):
         try:
+            updated_info = updated_schema.model_dump()
             if "password" in updated_info or "password_hash" in updated_info:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Please use the update password api call for this operation",
                 )
+            if "role" in updated_info:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Please use the update role api for this operation",
+                )
+            user
 
             for key, value in updated_info.items():
                 if hasattr(user, key):
@@ -155,16 +183,44 @@ class AuthService:
             await session.commit()
             await session.refresh(user)
 
-            return JSONResponse(
-                content={
-                    "message": f"User with {str(user.email)} email has been updated succesfully"
-                }
-            )
+            return user
 
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Error Updating User Info: {str(e)}",
+            )
+
+    async def update_user_role(
+        self, user: User, updated_schema: UserRoleUpdate, session: AsyncSession
+    ):
+        updated_info = updated_schema.model_dump()
+
+        new_role = updated_info.get("role")
+        if not new_role:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Role field is required.",
+            )
+
+        if user.role == new_role:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="New role and previous role are the same.",
+            )
+
+        # Update role
+        user.role = new_role
+
+        try:
+            await session.commit()
+            await session.refresh(user)
+            return user
+        except Exception as e:
+            await session.rollback()  # Ensure rollback on failure
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error updating user role: {str(e)}",
             )
 
     async def update_customer(

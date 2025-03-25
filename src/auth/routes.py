@@ -5,7 +5,12 @@ from pydantic import EmailStr
 from datetime import datetime
 from src.db.main import get_session
 from src.db.redis import add_token_to_blacklist
-from src.auth.dependencies import AccessTokenBearer, RefreshTokenBearer
+from src.auth.dependencies import (
+    AccessTokenBearer,
+    RefreshTokenBearer,
+    RoleChecker,
+    get_current_user,
+)
 from src.auth.service import AuthService
 from .utils import (
     generate_password_hash,
@@ -24,8 +29,14 @@ from .schema import (
     EmailSchema,
     PasswordResetSchema,
     PasswordConfirmSchema,
+    UserUpdateSchema,
+    UserRoleUpdate,
 )
+from src.db.models import User
 
+admin_checker = Depends(RoleChecker(["admin"]))
+manager_user = Depends(RoleChecker(["manager"]))
+admin_manager_checker = Depends(RoleChecker(["admin", "manager"]))
 
 auth_router = APIRouter()
 auth_service = AuthService()
@@ -33,6 +44,8 @@ auth_service = AuthService()
 # For the token data pass the following, email, user_id, role
 
 # TODO : -> Create Staff Routes
+# TODO : -> Create Update User role but only admin can access it
+# TODO : -> Update for User with customer role but everyone can access it.
 
 
 @auth_router.post("/send_email")
@@ -262,6 +275,87 @@ async def send_password_reset(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Error Sending Password Reset Email : {str(e)}",
+        )
+
+
+@auth_router.patch("/update-user/{user_id}")
+async def update_user(
+    user_id: str,
+    updated_info: UserUpdateSchema,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    # Fetch User to be Updated
+    user_tobe_updated = await auth_service.get_user_by_uid(user_id, session)
+
+    # Authorization Check
+    if user.role == "customer":
+        # Customers can only update themselves
+        if user_id != str(user.uid):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Customers can only update their own account.",
+            )
+    elif user.role == "manager":
+        # Managers can update Customers and other Managers, but NOT Admins
+        if user_tobe_updated.role == "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Managers cannot update Admin accounts.",
+            )
+    elif user.role == "admin":
+        # Admins can update anyone (no restrictions)
+        pass
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid role permissions.",
+        )
+    update_user_response = await auth_service.update_user(
+        user=user_tobe_updated, updated_info=updated_info, session=session
+    )
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "message": f"User with {str(user_tobe_updated.email)} email has been updated succesfully",
+            "user": convert_str(
+                update_user_response.model_dump(exclude={"password_hash", "role"})
+            ),
+        },
+    )
+
+
+@auth_router.patch("/update-role/{user_id}")
+async def update_role(
+    user_id: str,
+    updated_role: UserRoleUpdate,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    try:
+        user_to_be_updated = await auth_service.get_user_by_uid(user_id, session)
+        if user.role != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admin is allowed to access this service",
+            )
+        updated_response = await auth_service.update_user_role(
+            user=user, updated_schema=updated_role, session=session
+        )
+        return JSONResponse(
+            content={
+                "message": "User Role Updated Successfully",
+                "user": convert_str(
+                    updated_response.model_dump(exclude={"password_hash"})
+                ),
+            }
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error Updating User role: {str(e)}",
         )
 
 

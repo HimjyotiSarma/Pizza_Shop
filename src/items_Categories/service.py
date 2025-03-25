@@ -7,10 +7,17 @@ from .schema import ItemSchema, CategorySchema, ItemUpdateSchema
 
 
 class ItemService:
-    async def create_new_item(self, item_details: ItemSchema, session: AsyncSession):
+    async def create_new_item(
+        self, item_details: ItemSchema, item_image: str, session: AsyncSession
+    ):
         try:
             item_details_dict = item_details.model_dump()
             category_name = item_details_dict.pop("category")
+            if not item_image:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Item Image not provided. Or Error while processing image path",
+                )
             category_info = await self.get_category_details(category_name, session)
             if category_info is None:
                 raise HTTPException(
@@ -18,7 +25,7 @@ class ItemService:
                     detail=f"The Category {str(category_name)} doesnot exist in the database. You need to add the Category first before proceeding",
                 )
             # Add the New Category and the Item Category Entry
-            new_item = Item(**item_details_dict)
+            new_item = Item(**item_details_dict, image=item_image)
             session.add(new_item)
             await session.flush()
             # Create Item Category Link
@@ -40,8 +47,9 @@ class ItemService:
     async def get_item(self, item_id: str, session: AsyncSession):
         try:
             statement = select(Item).where(Item.uid == item_id)
-            item_info = await session.exec(statement)
-            return item_info or None
+            result = await session.exec(statement)
+            item_info = result.first()
+            return item_info
         except Exception as e:
             raise Exception(f"Error getting Item Info -> {str(e)}")
 
@@ -55,7 +63,7 @@ class ItemService:
             statement = select(Category).where(Category.name == category_name)
             result = await session.exec(statement)
             category_info = result.first()
-            return category_info or None
+            return category_info
         except Exception as e:
             raise Exception(f"Error getting category details: {str(e)}")
 
@@ -91,7 +99,6 @@ class ItemService:
 
     async def update_Item(self, item: Item, updated_item: dict, session: AsyncSession):
         try:
-
             for key, value in updated_item.items():
                 if hasattr(item, key):
                     setattr(item, key, value)
@@ -104,4 +111,58 @@ class ItemService:
 
         except Exception as e:
             await session.rollback()
-            raise Exception(f"Error Updating Item: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error Updating Item: {str(e)}",
+            )
+
+    async def update_Category(
+        self, category: Category, updated_category: dict, session: AsyncSession
+    ):
+        try:
+            for key, value in updated_category.items():
+                if hasattr(category, key):
+                    setattr(category, key, value)
+                else:
+                    ValueError(f"Invalid Key Attribute : {str(key)}")
+
+            await session.commit()
+            await session.refresh(category)
+            return category
+
+        except Exception as e:
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error Updating Category: {str(e)}",
+            )
+
+    async def delete_Item(self, item_id: str, session: AsyncSession):
+        try:
+            statement = select(Item).where(Item.uid == item_id)
+            result = await session.exec(statement)
+            item = result.one()
+            await session.delete(item)
+            await session.commit()
+            return True
+        except Exception as e:
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error on deleting Item: {str(e)}",
+            )
+
+    async def delete_Category(self, category_name: str, session: AsyncSession):
+        try:
+            statement = select(Category).where(Category.name == category_name)
+            result = await session.exec(statement)
+            category = result.one()
+            await session.delete(category)
+            await session.commit()
+            return True
+        except Exception as e:
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error on deleting Category: {str(e)}",
+            )
