@@ -46,13 +46,19 @@ class Item(BaseModel):
 
 # Each Order can can multiple Items and Each Item can have multiple Orders
 # So we are using Order_Items
-class Order_Items(BaseModel):
-    order_id: uuid.UUID
+
+
+class Item_Quantity(BaseModel):
     item_id: uuid.UUID
     quantity: NonNegativeInt = Field(default=1, le=1, ge=100)
-    price_at_order_time: Decimal = Field(
-        default=Decimal("0.00"), max_digits=10, decimal_places=2, examples=[12.99]
-    )
+
+
+class Order_Items_Schema(BaseModel):
+    order_id: uuid.UUID
+    items: List[Item_Quantity]
+    # price_at_order_time: Decimal = Field(
+    #     default=Decimal("0.00"), max_digits=10, decimal_places=2, examples=[12.99]
+    # )
 
 
 class Pizza_Category(BaseModel):
