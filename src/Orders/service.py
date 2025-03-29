@@ -1,7 +1,7 @@
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from fastapi import HTTPException, status
-from src.db.models import Order, Order_Items
+from src.db.models import Order, Order_Items, User, Customer
 from typing import List
 from .schemas import OrderSchema, Order_Items_Schema, Item_Quantity
 from src.items_Categories.service import ItemService

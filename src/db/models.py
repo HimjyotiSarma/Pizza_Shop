@@ -57,6 +57,10 @@ class Order_Items(SQLModel, table=True):
     price_at_order_time: Decimal = Field(
         sa_column=Column(pg.NUMERIC(10, 2), nullable=False)
     )
+    order: Optional["Order"] = Relationship(
+        back_populates="order_items", sa_relationship_kwargs={"lazy": "selectin"}
+    )
+    item: Optional["Item"] = Relationship()
 
 
 class Order(SQLModel, table=True):
@@ -65,9 +69,7 @@ class Order(SQLModel, table=True):
         sa_column=Column(pg.UUID, primary_key=True, default=uuid.uuid4, nullable=False)
     )
     customer_id: uuid.UUID = Field(
-        sa_column=Column(
-            pg.UUID, ForeignKey("customers.uid", ondelete="CASCADE"), nullable=False
-        )
+        sa_column=Column(pg.UUID, ForeignKey("customers.uid", ondelete="SET NULL"))
     )
     delivery_type: Delivery_Type = Field(
         sa_column=Column(
@@ -79,8 +81,14 @@ class Order(SQLModel, table=True):
             pg.ENUM(OrderStatus), default=OrderStatus.PROCESSING, nullable=False
         )
     )
-    address_id: uuid.UUID = Field(
+    address_id: Optional[uuid.UUID] = Field(
         sa_column=Column(pg.UUID, ForeignKey("delivery_addresses.uid"), nullable=True)
+    )
+    customer: Optional["Customer"] = Relationship(
+        back_populates="orders", sa_relationship_kwargs={"lazy": "selectin"}
+    )
+    order_items: List["Order_Items"] = Relationship(
+        back_populates="order", sa_relationship_kwargs={"lazy": "selectin"}
     )
     created_at: datetime = Field(
         sa_column=Column(
@@ -122,10 +130,10 @@ class User(SQLModel, table=True):
             pg.ENUM(User_Roles), default=User_Roles.CUSTOMER, nullable=False
         )
     )
-    customer: List["Customer"] = Relationship(
+    customer: Optional["Customer"] = Relationship(
         back_populates="user", sa_relationship_kwargs={"lazy": "selectin"}
     )
-    staff: List["Staff"] = Relationship(
+    staff: Optional["Staff"] = Relationship(
         back_populates="user", sa_relationship_kwargs={"lazy": "selectin"}
     )
     created_at: datetime = Field(
@@ -153,16 +161,49 @@ class Customer(SQLModel, table=True):
     )
     user_id: uuid.UUID = Field(
         sa_column=Column(
-            pg.UUID, ForeignKey("users.uid", ondelete="CASCADE"), nullable=False
+            pg.UUID,
+            ForeignKey("users.uid", ondelete="CASCADE"),
+            nullable=False,
+            unique=True,
         )
     )
     is_verified: bool = Field(
         sa_column=Column(pg.BOOLEAN, nullable=False, default=False)
     )
-    user: Optional[User] = Relationship(back_populates="customer")
+    user: User = Relationship(
+        back_populates="customer", sa_relationship_kwargs={"lazy": "selectin"}
+    )
+    addresses: List["Delivery_Address"] = Relationship(
+        back_populates="customer", sa_relationship_kwargs={"lazy": "selectin"}
+    )
+    orders: List[Order] = Relationship(
+        back_populates="customer", sa_relationship_kwargs={"lazy": "selectin"}
+    )
 
     def __repr__(self):
-        return f"<Customer with id {self.uid} created"
+        return f"<Customer with id {self.uid} created>"
+
+
+class Delivery_Address(SQLModel, table=True):
+    __tablename__ = "delivery_addresses"
+    uid: uuid.UUID = Field(
+        sa_column=Column(pg.UUID, default=uuid.uuid4, primary_key=True)
+    )
+    customer_id: uuid.UUID = Field(
+        sa_column=Column(
+            pg.UUID, ForeignKey("customers.uid", ondelete="CASCADE"), nullable=False
+        )
+    )
+    address_line_1: str = Field(sa_column=Column(pg.VARCHAR(250), nullable=False))
+    address_line_2: Optional[str] = Field(
+        sa_column=Column(pg.VARCHAR(250), nullable=True)
+    )
+    city: str = Field(sa_column=Column(pg.VARCHAR(100), nullable=True))
+    postal_code: str = Field(sa_column=Column(pg.VARCHAR(100), nullable=True))
+    customer: Optional[Customer] = Relationship(back_populates="addresses")
+
+    def __repr__(self):
+        return f"<Delivery_Address of Customer {self.customer_id}>"
 
 
 class Staff(SQLModel, table=True):
@@ -172,7 +213,10 @@ class Staff(SQLModel, table=True):
     )
     user_id: uuid.UUID = Field(
         sa_column=Column(
-            pg.UUID, ForeignKey("users.uid", ondelete="CASCADE"), nullable=False
+            pg.UUID,
+            ForeignKey("users.uid", ondelete="CASCADE"),
+            nullable=False,
+            unique=True,
         )
     )
     job_title: Staff_Roles | str = Field(
@@ -188,7 +232,9 @@ class Staff(SQLModel, table=True):
     salary: Decimal = Field(
         sa_column=Column(pg.NUMERIC(10, 2), nullable=False, default=0.00)
     )
-    user: Optional[User] = Relationship(back_populates="staff")
+    user: User = Relationship(
+        back_populates="staff", sa_relationship_kwargs={"lazy": "selectin"}
+    )
 
     def __repr__(self):
         return f"<New Staff Added with role {self.job_title} and id {self.uid}"
@@ -231,27 +277,6 @@ class Item(SQLModel, table=True):
         return f"<Item {self.name} with SKU {self.sku}>"
 
 
-class Delivery_Address(SQLModel, table=True):
-    __tablename__ = "delivery_addresses"
-    uid: uuid.UUID = Field(
-        sa_column=Column(pg.UUID, default=uuid.uuid4, primary_key=True)
-    )
-    customer_id: uuid.UUID = Field(
-        sa_column=Column(
-            pg.UUID, ForeignKey("customers.uid", ondelete="CASCADE"), nullable=False
-        )
-    )
-    address_line_1: str = Field(sa_column=Column(pg.VARCHAR(250), nullable=False))
-    address_line_2: Optional[str] = Field(
-        sa_column=Column(pg.VARCHAR(250), nullable=True)
-    )
-    city: str = Field(sa_column=Column(pg.VARCHAR(100), nullable=True))
-    postal_code: str = Field(sa_column=Column(pg.VARCHAR(100), nullable=True))
-
-    def __repr__(self):
-        return f"<Delivery_Address of Customer {self.customer_id}>"
-
-
 class Category(SQLModel, table=True):
     __tablename__ = "categories"
     uid: uuid.UUID = Field(
@@ -286,7 +311,10 @@ class Payment(SQLModel, table=True):
     )
     transaction_id: str = Field(sa_column=Column(pg.VARCHAR(250), nullable=False))
     order_id: uuid.UUID = Field(
-        sa_column=Column(pg.UUID, ForeignKey("orders.uid"), nullable=False)
+        sa_column=Column(
+            pg.UUID,
+            ForeignKey("orders.uid", ondelete="SET NULL"),
+        ),
     )
     payment_method: Payment_Method | str = Field(
         sa_column=Column(pg.ENUM(Payment_Method), nullable=False)

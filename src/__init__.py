@@ -9,6 +9,7 @@ import logging
 # Import Routers Here
 from src.auth.routes import auth_router
 from src.items_Categories.routes import item_router
+from src.Address.routes import address_router
 
 
 APP_VERSION = settings.APP_VERSION
@@ -51,4 +52,9 @@ app.include_router(
     item_router,
     prefix=f"/{ROOT_ROUTE}/{APP_VERSION}/inventory",
     tags=["Items and Category"],
+)
+app.include_router(
+    address_router,
+    prefix=f"/{ROOT_ROUTE}/{APP_VERSION}/delivery",
+    tags=["delivery and addresses"],
 )

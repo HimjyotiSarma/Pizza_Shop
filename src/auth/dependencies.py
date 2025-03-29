@@ -102,6 +102,30 @@ async def get_current_user(
     return user_details
 
 
+async def get_current_customer(
+    token_details: dict = Depends(AccessTokenBearer()),
+    session: AsyncSession = Depends(get_session),
+):
+    user_id = token_details["user"]["user_id"]
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token data Invalid or Expired. Please Login and Try again",
+        )
+    customer_details = await auth_service.get_customer(user_id=user_id, session=session)
+    if not customer_details.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"User isn't verified yet. Please verify your account and try again",
+        )
+    if not customer_details:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Customer details not found in the database",
+        )
+    return customer_details
+
+
 def save_temp_image(image_file: UploadFile = File(...)) -> str:
     allowed_types = {"image/jpeg", "image/png", "image/gif"}
     if image_file.content_type not in allowed_types:
