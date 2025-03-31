@@ -51,7 +51,7 @@ class AddressService:
     ):
         # The Customer Id is a URL parameter
         try:
-            address_details_dict = address_details.model_dump()
+            address_details_dict = address_details.model_dump(exclude_unset=True)
             address_details_dict["customer_id"] = customer_id
             print(address_details_dict)
             new_address = Delivery_Address(**address_details_dict)

@@ -161,7 +161,7 @@ class AuthService:
         self, user: User, updated_schema: UserUpdateSchema, session: AsyncSession
     ):
         try:
-            updated_info = updated_schema.model_dump()
+            updated_info = updated_schema.model_dump(exclude_unset=True)
             if "password" in updated_info or "password_hash" in updated_info:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -194,7 +194,7 @@ class AuthService:
     async def update_user_role(
         self, user: User, updated_schema: UserRoleUpdate, session: AsyncSession
     ):
-        updated_info = updated_schema.model_dump()
+        updated_info = updated_schema.model_dump(exclude_unset=True)
 
         new_role = updated_info.get("role")
         if not new_role:

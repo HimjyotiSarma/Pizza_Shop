@@ -24,7 +24,7 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 def create_token(user_data: dict, isRefreshToken: bool = False):
     expiry_date = datetime.now() + (
-        timedelta(minutes=10080) if isRefreshToken else timedelta(1440)
+        timedelta(minutes=10080) if isRefreshToken else timedelta(minutes=1440)
     )
     payload = {
         "jti": str(uuid.uuid4()),

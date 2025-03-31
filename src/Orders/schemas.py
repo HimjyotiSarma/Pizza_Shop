@@ -23,7 +23,6 @@ from src.db.Types import (
 
 # NOTE -> Address Id can be None and For Empty address Id the delivery type is PICKUP
 class OrderSchema(BaseModel):
-    customer_id: uuid.UUID
     address_id: Optional[uuid.UUID] = None
     delivery_type: Delivery_Type = Field(default=Delivery_Type.HOME_DELIVERY)
 
@@ -38,6 +37,22 @@ class OrderSchema(BaseModel):
         return values
 
 
+class UpdateOrderSchema(BaseModel):
+    address_id: Optional[uuid.UUID] = None
+    delivery_type: Optional[Delivery_Type] = Field(default=Delivery_Type.HOME_DELIVERY)
+    order_status: Optional[OrderStatus]
+
+    # @model_validator(mode="before")
+    # @classmethod
+    # def validate_delivery(cls, values) -> Self:
+    #     if (
+    #         values.get("delivery_type") == Delivery_Type.HOME_DELIVERY
+    #         and values.get("address_id") is None
+    #     ):
+    #         raise ValueError("The Address Field cannot be empty for Home Delivery")
+    #     return values
+
+
 class Item(BaseModel):
     name: str
     sku: str
@@ -50,7 +65,7 @@ class Item(BaseModel):
 
 class Item_Quantity(BaseModel):
     item_id: uuid.UUID
-    quantity: NonNegativeInt = Field(default=1, le=1, ge=100)
+    quantity: NonNegativeInt = Field(default=1, ge=1, le=20)
 
 
 class Order_Items_Schema(BaseModel):

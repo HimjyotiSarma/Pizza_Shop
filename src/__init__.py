@@ -10,6 +10,7 @@ import logging
 from src.auth.routes import auth_router
 from src.items_Categories.routes import item_router
 from src.Address.routes import address_router
+from src.Orders.routes import order_router
 
 
 APP_VERSION = settings.APP_VERSION
@@ -57,4 +58,9 @@ app.include_router(
     address_router,
     prefix=f"/{ROOT_ROUTE}/{APP_VERSION}/delivery",
     tags=["delivery and addresses"],
+)
+app.include_router(
+    order_router,
+    prefix=f"/{ROOT_ROUTE}/{APP_VERSION}/orders",
+    tags=["Orders and Payment"],
 )

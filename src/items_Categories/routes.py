@@ -86,6 +86,46 @@ def parse_update_category_form_data(
     return {key: value for key, value in category_data.items() if value is not None}
 
 
+@item_router.get("/all")
+async def get_all_items(session: AsyncSession = Depends(get_session)):
+    try:
+        all_items = await item_service.get_all_items(session)
+        if not all_items:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Something went wrong when fetching All Items",
+            )
+        return JSONResponse(
+            content={
+                "message": "All Items fetched successfully",
+                "items": all_items,
+            }
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Error Getting items: -> {str(e)}",
+        )
+
+
+@item_router.get("/item/{item_id}")
+async def get_single_item(item_id: str, session: AsyncSession = Depends(get_session)):
+    try:
+        item = await item_service.get_item(item_id=item_id, session=session)
+        return JSONResponse(
+            content={
+                "message": "Item fetched successfully",
+                "item": convert_str(item.model_dump()),
+            },
+            status_code=status.HTTP_200_OK,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting Item info: {str(e)}",
+        )
+
+
 @item_router.post("/create", dependencies=[admin_manager_checker])
 async def create_new_Item(
     item_details: ItemSchema = Depends(parse_item_form_data),

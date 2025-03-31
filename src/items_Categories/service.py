@@ -2,11 +2,25 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 from fastapi import status, HTTPException
 
+
 from src.db.models import Item, Item_Category, Category
 from .schema import ItemSchema, CategorySchema, ItemUpdateSchema
+from src.auth.utils import convert_str
 
 
 class ItemService:
+    async def get_all_items(self, session: AsyncSession):
+        try:
+            statement = select(Item)
+            result = (await session.exec(statement)).all()
+            converted_result = [convert_str(item.model_dump()) for item in result]
+            return converted_result
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error finding Items -> {str(e)}",
+            )
+
     async def create_new_item(
         self, item_details: ItemSchema, item_image: str, session: AsyncSession
     ):
